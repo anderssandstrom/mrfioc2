@@ -87,8 +87,10 @@ typedef struct {
     int precision;
     int nsamples;
     int valid;
-
-    int pad[10];
+    // Add nano secs
+    unsigned        stampNsec;     /* Unsigned ns timestamps */
+    unsigned        rxNsec;   /* Unsigned ns timestamps */
+    int pad[8];
 } shmSegment;
 
 static epicsThreadOnceId ntponce = EPICS_THREAD_ONCE_INIT;
@@ -142,24 +144,30 @@ static void ntpshmupdate(void*, epicsUInt32 event)
         incFail(); return;
     }
 
-    struct timeval cputs;
+    epicsTimeStamp rxTime;
+    
+    epicsTimeGetCurrent ( &rxTime );
+
+    /*struct timeval cputs;
     if(gettimeofday(&cputs, 0))
     {
         // no valid cpu time?
         incFail(); return;
-    }
+    }*/
 
     struct timeval evrts_posix;
     evrts_posix.tv_sec = evrts.secPastEpoch + POSIX_TIME_AT_EPICS_EPOCH;
     evrts_posix.tv_usec = evrts.nsec / 1000;
+
+    // Remove this since chrony shm driver only uses nsec if usec==nsec/1000
     // correct for bias in truncation
-    if(evrts.nsec % 1000 >= 500) {
+    /*if(evrts.nsec % 1000 >= 500) {
         evrts_posix.tv_usec += 1;
         if(evrts_posix.tv_usec>=1000000) {
             evrts_posix.tv_sec += 1;
             evrts_posix.tv_usec = 0;
         }
-    }
+    }*/
 
     // volatile operations aren't really enough, but will have to do.
     volatile shmSegment* seg=ntpShm.seg;
@@ -168,9 +176,16 @@ static void ntpshmupdate(void*, epicsUInt32 event)
     SYNC();
     int c1 = seg->count++;
     seg->stampSec = evrts_posix.tv_sec;
-    seg->stampUsec = evrts_posix.tv_usec;
-    seg->rxSec = cputs.tv_sec;
-    seg->rxUsec = cputs.tv_usec;
+    //seg->stampUsec = evrts_posix.tv_usec;
+    seg->stampUsec = evrts.nsec / 1000;
+    seg->stampNsec = evrts.nsec;
+    //seg->rxSec = cputs.tv_sec;
+    //seg->rxUsec = cputs.tv_usec;
+    
+    seg->rxSec = rxTime.secPastEpoch + POSIX_TIME_AT_EPICS_EPOCH;
+    seg->rxUsec = rxTime.nsec/1000;
+    seg->rxNsec = rxTime.nsec;
+
     int c2 = seg->count++;
     if(c1+1!=c2) {
         fprintf(stderr, "ntpshmupdate: possible collision with another writer!\n");
@@ -183,7 +198,7 @@ static void ntpshmupdate(void*, epicsUInt32 event)
     ntpShm.lastValid = true;
     ntpShm.numOk++;
     ntpShm.lastStamp = evrts;
-    ntpShm.lastRx = epicsTime(cputs);
+    ntpShm.lastRx = rxTime;//epicsTime(cputs);
     epicsMutexUnlock(ntpShm.ntplock);
 
     scanIoRequest(ntpShm.lastUpdate);
