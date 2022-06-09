@@ -125,6 +125,7 @@ static ntpShmPriv ntpShm;
 
 static void incFail()
 {
+    printf("incFail\n");
     epicsMutexMustLock(ntpShm.ntplock);
     ntpShm.lastValid = false;
     ntpShm.numFail++;
@@ -133,9 +134,12 @@ static void incFail()
 
 static void ntpshmupdate(void*, epicsUInt32 event)
 {
+    printf("ntpshmupdate 1\n");
     if(event!=ntpShm.event) {
         incFail(); return;
     }
+
+    printf("ntpshmupdate 2\n");
 
     epicsTimeStamp evrts;
     if(!ntpShm.evr->getTimeStamp(&evrts, 0)) // read current wall clock time
@@ -144,9 +148,14 @@ static void ntpshmupdate(void*, epicsUInt32 event)
         incFail(); return;
     }
 
-    epicsTimeStamp rxTime;
+    printf("ntpshmupdate 3\n");
+
+    //epicsTimeStamp rxTime;
     
-    epicsTimeGetCurrent ( &rxTime );
+    //epicsTimeGetCurrentInt ( &rxTime );
+
+    struct timespec rxTime;
+    clock_gettime(CLOCK_REALTIME, &rxTime);
 
     /*struct timeval cputs;
     if(gettimeofday(&cputs, 0))
@@ -154,6 +163,8 @@ static void ntpshmupdate(void*, epicsUInt32 event)
         // no valid cpu time?
         incFail(); return;
     }*/
+
+    printf("ntpshmupdate 4\n");
 
     struct timeval evrts_posix;
     evrts_posix.tv_sec = evrts.secPastEpoch + POSIX_TIME_AT_EPICS_EPOCH;
@@ -168,6 +179,7 @@ static void ntpshmupdate(void*, epicsUInt32 event)
             evrts_posix.tv_usec = 0;
         }
     }*/
+    printf("ntpshmupdate 5\n");
 
     // volatile operations aren't really enough, but will have to do.
     volatile shmSegment* seg=ntpShm.seg;
@@ -181,16 +193,26 @@ static void ntpshmupdate(void*, epicsUInt32 event)
     seg->stampNsec = evrts.nsec;
     //seg->rxSec = cputs.tv_sec;
     //seg->rxUsec = cputs.tv_usec;
-    
-    seg->rxSec = rxTime.secPastEpoch + POSIX_TIME_AT_EPICS_EPOCH;
-    seg->rxUsec = rxTime.nsec/1000;
-    seg->rxNsec = rxTime.nsec;
+      
+    seg->rxSec = rxTime.tv_sec;
+    seg->rxUsec = rxTime.tv_nsec / 1000;
+    seg->rxNsec = rxTime.tv_nsec;
+
+
+    printf("stamp sec  : %d\n",seg->stampSec);
+    printf("stamp usec : %d\n",seg->stampUsec);
+    printf("stamp nsec : %d\n",seg->stampNsec);
+    printf("rx sec     : %d\n", seg->rxSec);
+    printf("rx usec    : %d\n", seg->rxUsec);
+    printf("rx nsec    : %d\n", seg->rxNsec);
 
     int c2 = seg->count++;
     if(c1+1!=c2) {
         fprintf(stderr, "ntpshmupdate: possible collision with another writer!\n");
         incFail(); return;
     }
+    printf("ntpshmupdate 6\n");
+
     seg->valid = 1;
     SYNC();
 
@@ -198,7 +220,7 @@ static void ntpshmupdate(void*, epicsUInt32 event)
     ntpShm.lastValid = true;
     ntpShm.numOk++;
     ntpShm.lastStamp = evrts;
-    ntpShm.lastRx = rxTime;//epicsTime(cputs);
+    ntpShm.lastRx = epicsTime(rxTime);//epicsTime(cputs);
     epicsMutexUnlock(ntpShm.ntplock);
 
     scanIoRequest(ntpShm.lastUpdate);
@@ -207,6 +229,7 @@ static void ntpshmupdate(void*, epicsUInt32 event)
         fprintf(stderr, "First update ready for NTPD\n");
         ntpShm.notify_1strx = 1;
     }
+    printf("ntpshmupdate 7\n");
 
     return; // normal exit
 }
