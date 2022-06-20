@@ -136,6 +136,7 @@ static void ntpshmupdate(void*, epicsUInt32 event)
 {
 //    printf("ntpshmupdate 1\n");
     if(event!=ntpShm.event) {
+        printf("EVENT diff\n");
         incFail(); return;
     }
 
@@ -144,6 +145,7 @@ static void ntpshmupdate(void*, epicsUInt32 event)
     epicsTimeStamp evrts;
     if(!ntpShm.evr->getTimeStamp(&evrts, 0)) // read current wall clock time
     {
+        printf("EVR TIMESTAMP FAIL\n");
         // no valid device time
         incFail(); return;
     }
