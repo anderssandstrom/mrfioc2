@@ -157,14 +157,15 @@ static void ntpshmupdate(void*, epicsUInt32 event)
     //epicsTimeGetCurrentInt ( &rxTime );
 
     struct timespec rxTime;
-    clock_gettime(CLOCK_REALTIME, &rxTime);
+    //clock_gettime(CLOCK_REALTIME, &rxTime);
 
-    /*struct timeval cputs;
-    if(gettimeofday(&cputs, 0))
+    //struct timeval cputs;
+    if(clock_gettime(CLOCK_REALTIME, &rxTime)!=0)
     {
+        printf("SYSTEM TIMESTAMP FAIL\n");
         // no valid cpu time?
         incFail(); return;
-    }*/
+    }
 
  //   printf("ntpshmupdate 4\n");
 
