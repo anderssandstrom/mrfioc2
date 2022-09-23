@@ -774,11 +774,17 @@ EVRMRM::TimeStampValid() const
 bool
 EVRMRM::getTimeStamp(epicsTimeStamp *ret,epicsUInt32 event)
 {
-    if(!ret) throw std::runtime_error("Invalid argument");
+    if(!ret){
+      printf("EVRMRM::getTimeStamp(): Invalid argument\n");
+      throw std::runtime_error("Invalid argument");
+    }
     epicsTimeStamp ts;
 
     SCOPED_LOCK(evrLock);
-    if(timestampValid<TSValidThreshold) return false;
+    if(timestampValid<TSValidThreshold){ 
+      printf("EVRMRM::getTimeStamp(): Invalid timestamp\n");
+      return false;
+    }
 
     if(event>0 && event<=255) {
         // Get time of last event code #
@@ -790,6 +796,7 @@ EVRMRM::getTimeStamp(epicsTimeStamp *ret,epicsUInt32 event)
             ( entry->last_sec==0 &&
               entry->last_evt==0) )
         {
+            printf("EVRMRM::getTimeStamp(): Event not mapped\n");
             return false;
         }
 
@@ -823,8 +830,10 @@ EVRMRM::getTimeStamp(epicsTimeStamp *ret,epicsUInt32 event)
 
     }
 
-    if(!convertTS(&ts))
+    if(!convertTS(&ts)) {
+        printf("EVRMRM::getTimeStamp(): convertTS() fail\n");
         return false;
+    }
 
     *ret = ts;
     return true;

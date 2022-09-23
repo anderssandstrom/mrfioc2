@@ -122,10 +122,41 @@ typedef struct {
 } ntpShmPriv;
 static ntpShmPriv ntpShm;
 
+char time_now_str[35];
+
+int timespec2str(char *buf, uint len, struct timespec *ts) {
+    buf[0]=0;
+    int ret;
+    struct tm t;
+
+    tzset();
+    if (localtime_r(&(ts->tv_sec), &t) == NULL)
+        return 1;
+
+    ret = strftime(buf, len, "%F %T", &t);
+    if (ret == 0)
+        return 2;
+    len -= ret - 1;
+
+    ret = snprintf(&buf[strlen(buf)], len, ".%09ld", ts->tv_nsec);
+    if (ret >= len)
+        return 3;
+
+    return 0;
+}
 
 static void incFail()
 {
-    printf("incFail\n");
+    struct timespec rxTime;
+
+    if(clock_gettime(CLOCK_REALTIME, &rxTime)==0)
+    {
+      timespec2str(&time_now_str[0],35, &rxTime);
+      printf(" Time %s (incFail())\n",time_now_str);
+    } else {
+      printf("FAILED READ TIME in incfail()");
+    }
+
     epicsMutexMustLock(ntpShm.ntplock);
     ntpShm.lastValid = false;
     ntpShm.numFail++;
@@ -136,7 +167,7 @@ static void ntpshmupdate(void*, epicsUInt32 event)
 {
 //    printf("ntpshmupdate 1\n");
     if(event!=ntpShm.event) {
-        printf("EVENT diff\n");
+     	printf("ntpshmupdate(): Event missmatch : ");
         incFail(); return;
     }
 
@@ -145,7 +176,7 @@ static void ntpshmupdate(void*, epicsUInt32 event)
     epicsTimeStamp evrts;
     if(!ntpShm.evr->getTimeStamp(&evrts, 0)) // read current wall clock time
     {
-        printf("EVR TIMESTAMP FAIL\n");
+        printf("ntpshmupdate():getTimeStamp(): FAIL : ");
         // no valid device time
         incFail(); return;
     }
@@ -162,7 +193,7 @@ static void ntpshmupdate(void*, epicsUInt32 event)
     //struct timeval cputs;
     if(clock_gettime(CLOCK_REALTIME, &rxTime)!=0)
     {
-        printf("SYSTEM TIMESTAMP FAIL\n");
+     	printf("ntpshmupdate():clock_gettime(): FAIL : ");
         // no valid cpu time?
         incFail(); return;
     }
